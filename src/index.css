@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* PDF viewer styles */
+.react-pdf__Page {
+  margin-top: 10px;
+}
+
+/* Import PDF.js styles */
+@import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+@import 'react-pdf/dist/esm/Page/TextLayer.css';
