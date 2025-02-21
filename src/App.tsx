@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileUp, File, Trash2, Maximize2, Minimize2 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import mammoth from 'mammoth';
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -10,6 +11,7 @@ interface UploadedFile {
   name: string;
   type: string;
   url: string;
+  content?: string;
 }
 
 function App() {
@@ -18,22 +20,33 @@ function App() {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [expandedView, setExpandedView] = useState(false);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = event.target.files;
     if (!uploadedFiles) return;
 
-    const newFiles: UploadedFile[] = Array.from(uploadedFiles).map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      name: file.name,
-      type: file.type,
-      url: URL.createObjectURL(file)
-    }));
+    const newFiles: UploadedFile[] = await Promise.all(
+      Array.from(uploadedFiles).map(async (file) => {
+        let content = '';
+        if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          content = result.value;
+        }
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: file.type,
+          url: URL.createObjectURL(file),
+          content,
+        };
+      })
+    );
 
-    setFiles(prev => [...prev, ...newFiles]);
+    setFiles((prev) => [...prev, ...newFiles]);
   };
 
   const handleDelete = (id: string) => {
-    setFiles(prev => prev.filter(file => file.id !== id));
+    setFiles((prev) => prev.filter((file) => file.id !== id));
     if (selectedFile?.id === id) {
       setSelectedFile(null);
     }
@@ -72,7 +85,7 @@ function App() {
           <div className={`bg-white rounded-2xl shadow-lg p-6 border border-sky-100 ${expandedView ? 'hidden md:block' : ''}`}>
             <h2 className="text-xl font-semibold mb-4 text-sky-800">Files</h2>
             <div className="space-y-2">
-              {files.map(file => (
+              {files.map((file) => (
                 <div
                   key={file.id}
                   className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 ${
@@ -142,15 +155,8 @@ function App() {
                     ))}
                   </Document>
                 ) : (
-                  <div className="text-center p-8">
-                    <p className="mb-4 text-sky-600">Word document preview is not available in the browser.</p>
-                    <a
-                      href={selectedFile.url}
-                      download={selectedFile.name}
-                      className="text-sky-600 hover:text-sky-800 underline font-medium"
-                    >
-                      Download {selectedFile.name}
-                    </a>
+                  <div className="text-left p-8">
+                    <p className="mb-4 text-sky-600 whitespace-pre-wrap">{selectedFile.content}</p>
                   </div>
                 )}
               </div>
