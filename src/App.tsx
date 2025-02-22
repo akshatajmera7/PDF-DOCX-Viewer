@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileUp, File, Trash2, Maximize2, Minimize2 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import mammoth from 'mammoth';
+import { renderAsync } from 'docx-preview';
+import WebViewer from '@pdftron/webviewer';
+import { PDFDocument, rgb } from 'pdf-lib';
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -12,13 +15,17 @@ interface UploadedFile {
   type: string;
   url: string;
   content?: string;
+  pdfUrl?: string;
 }
 
 function App() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [expandedView, setExpandedView] = useState(false);
+  const [expandedView, setExpandedView] = useState(true);
+  const [viewMode, setViewMode] = useState<'mammoth' | 'docx-preview' | 'webviewer' | 'pdf'>('docx-preview');
+  const docxPreviewRef = useRef<HTMLDivElement>(null);
+  const webViewerRef = useRef<HTMLDivElement>(null);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = event.target.files;
@@ -56,6 +63,63 @@ function App() {
     setNumPages(numPages);
   };
 
+  const convertDocxToPdf = async (file: UploadedFile) => {
+    const response = await fetch(file.url);
+    const arrayBuffer = await response.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    const text = result.value;
+
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([600, 800]);
+    const { width, height } = page.getSize();
+    const fontSize = 12;
+    page.drawText(text, {
+      x: 50,
+      y: height - 4 * fontSize,
+      size: fontSize,
+      color: rgb(0, 0, 0),
+    });
+    const pdfBytes = await pdfDoc.save();
+    const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    setSelectedFile({ ...file, pdfUrl });
+    setViewMode('pdf');
+  };
+
+  useEffect(() => {
+    if (selectedFile && selectedFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      if (viewMode === 'docx-preview') {
+        const loadDocxPreview = async () => {
+          if (docxPreviewRef.current) {
+            docxPreviewRef.current.innerHTML = '';
+            const response = await fetch(selectedFile.url);
+            const arrayBuffer = await response.arrayBuffer();
+            await renderAsync(arrayBuffer, docxPreviewRef.current);
+          }
+        };
+        loadDocxPreview();
+      } else if (viewMode === 'webviewer') {
+        const loadWebViewer = async () => {
+          if (webViewerRef.current) {
+            WebViewer(
+              {
+                path: '/lib',
+                initialDoc: selectedFile.url,
+              },
+              webViewerRef.current
+            ).then((instance) => {
+              const { documentViewer } = instance.Core;
+              documentViewer.addEventListener('documentLoaded', () => {
+                console.log('Document loaded');
+              });
+            });
+          }
+        };
+        loadWebViewer();
+      }
+    }
+  }, [selectedFile, viewMode]);
+
   return (
     <div className="min-h-screen bg-sky-50 p-8 relative">
       <div className="max-w-7xl mx-auto">
@@ -81,8 +145,8 @@ function App() {
           </label>
         </div>
 
-        <div className={`grid gap-6 transition-all duration-300 ${expandedView ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'}`}>
-          <div className={`bg-white rounded-2xl shadow-lg p-6 border border-sky-100 ${expandedView ? 'hidden md:block' : ''}`}>
+        <div className={`grid gap-6 transition-all duration-300 ${expandedView ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1'}`}>
+          <div className={`bg-white rounded-2xl shadow-lg p-6 border border-sky-100 ${expandedView ? '' : 'hidden md:block'}`}>
             <h2 className="text-xl font-semibold mb-4 text-sky-800">Files</h2>
             <div className="space-y-2">
               {files.map((file) => (
@@ -116,33 +180,31 @@ function App() {
             </div>
           </div>
 
-          <div className={`bg-white rounded-2xl shadow-lg p-6 border border-sky-100 ${expandedView ? 'col-span-full' : 'md:col-span-2'}`}>
+          <div className={`bg-white rounded-2xl shadow-lg p-6 border border-sky-100 ${expandedView ? 'md:col-span-2' : 'col-span-full'}`}>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-sky-800">Preview</h2>
-              {selectedFile?.type === 'application/pdf' && (
-                <button
-                  onClick={() => setExpandedView(!expandedView)}
-                  className="flex items-center gap-2 text-sky-600 hover:text-sky-800 transition-colors"
-                >
-                  {expandedView ? (
-                    <>
-                      <Minimize2 className="w-4 h-4" />
-                      <span className="text-sm">Normal view</span>
-                    </>
-                  ) : (
-                    <>
-                      <Maximize2 className="w-4 h-4" />
-                      <span className="text-sm">Full width</span>
-                    </>
-                  )}
-                </button>
-              )}
+              <button
+                onClick={() => setExpandedView(!expandedView)}
+                className="flex items-center gap-2 text-sky-600 hover:text-sky-800 transition-colors"
+              >
+                {expandedView ? (
+                  <>
+                    <Minimize2 className="w-4 h-4" />
+                    <span className="text-sm">Normal view</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="w-4 h-4" />
+                    <span className="text-sm">Full width</span>
+                  </>
+                )}
+              </button>
             </div>
             {selectedFile ? (
               <div className="overflow-auto max-h-[calc(100vh-300px)]">
-                {selectedFile.type === 'application/pdf' ? (
+                {selectedFile.type === 'application/pdf' || viewMode === 'pdf' ? (
                   <Document
-                    file={selectedFile.url}
+                    file={viewMode === 'pdf' ? selectedFile.pdfUrl : selectedFile.url}
                     onLoadSuccess={onDocumentLoadSuccess}
                     className="mx-auto"
                   >
@@ -156,7 +218,22 @@ function App() {
                   </Document>
                 ) : (
                   <div className="text-left p-8">
-                    <p className="mb-4 text-sky-600 whitespace-pre-wrap">{selectedFile.content}</p>
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-semibold text-sky-800">DOCX Preview</h2>
+                      <button
+                        onClick={() => setViewMode(viewMode === 'docx-preview' ? 'webviewer' : viewMode === 'webviewer' ? 'mammoth' : 'docx-preview')}
+                        className="text-sky-600 hover:text-sky-800 transition-colors"
+                      >
+                        {viewMode === 'docx-preview' ? 'Switch to webviewer' : viewMode === 'webviewer' ? 'Switch to mammoth' : 'Switch to docx-preview'}
+                      </button>
+                    </div>
+                    {viewMode === 'docx-preview' ? (
+                      <div ref={docxPreviewRef} className="docx-preview"></div>
+                    ) : viewMode === 'webviewer' ? (
+                      <div ref={webViewerRef} className="webviewer" style={{ height: '100vh' }}></div>
+                    ) : (
+                      <p className="mb-4 text-sky-600 whitespace-pre-wrap">{selectedFile.content}</p>
+                    )}
                   </div>
                 )}
               </div>
