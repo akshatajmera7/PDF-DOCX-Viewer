@@ -140,7 +140,7 @@ function App() {
             <div className="text-sky-600">
               <FileUp className="w-16 h-16 mx-auto mb-4 text-sky-400" />
               <p className="text-lg font-medium mb-2">Drop files here or click to upload</p>
-              <p className="text-sm text-sky-400">Supported formats: PDF, DOC, DOCX</p>
+              <p className="text-sm text-sky-400">Supported formats: PDF, DOCX</p>
             </div>
           </label>
         </div>
