@@ -4,7 +4,127 @@
 
 /* PDF viewer styles */
 .react-pdf__Page {
-  margin-top: 10px;
+  margin: 0;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  background-color: white;
+}
+
+.preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  min-height: 200px;
+  height: auto !important;
+  overflow: auto;
+  max-height: calc(100vh - 300px);
+  background-color: #f5f7fa; /* Light gray background to make white pages stand out */
+}
+
+.pdf-page-container {
+  margin: 0 auto 16px auto;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  background-color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  overflow: hidden; /* This prevents any content from spilling outside */
+}
+
+.pdf-page {
+  display: block;
+  margin: 0 auto;
+  border-radius: 2px;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* For compact mode with minimal whitespace between pages */
+.compact-pdf-view .pdf-page-container {
+  margin-bottom: 4px;
+}
+
+/* Remove default Page component spacing */
+.react-pdf__Page__canvas {
+  margin: 0 !important;
+  display: block !important;
+}
+
+/* The last page should not have bottom margin */
+.pdf-page-container:last-child {
+  margin-bottom: 0;
+}
+
+/* Document container should not add extra space */
+.react-pdf__Document {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* View options styling */
+.view-options {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  margin-right: 16px;
+  cursor: pointer;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+  margin-right: 8px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: #38bdf8;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(20px);
 }
 
 /* Import PDF.js styles */

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileUp, File, Trash2, Maximize2, Minimize2 } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import mammoth from 'mammoth';
@@ -26,6 +26,27 @@ function App() {
   const [viewMode, setViewMode] = useState<'mammoth' | 'docx-preview' | 'webviewer' | 'pdf'>('docx-preview');
   const docxPreviewRef = useRef<HTMLDivElement>(null);
   const webViewerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  // Add resize observer to get accurate container width
+  useEffect(() => {
+    if (containerRef.current) {
+      setContainerWidth(containerRef.current.clientWidth);
+      
+      const resizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) {
+          setContainerWidth(entry.contentRect.width);
+        }
+      });
+      
+      resizeObserver.observe(containerRef.current);
+      
+      return () => {
+        if (containerRef.current) resizeObserver.unobserve(containerRef.current);
+      };
+    }
+  }, [expandedView]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = event.target.files;
@@ -59,10 +80,6 @@ function App() {
     }
   };
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-  };
-
   const convertDocxToPdf = async (file: UploadedFile) => {
     const response = await fetch(file.url);
     const arrayBuffer = await response.arrayBuffer();
@@ -84,6 +101,10 @@ function App() {
     const pdfUrl = URL.createObjectURL(pdfBlob);
     setSelectedFile({ ...file, pdfUrl });
     setViewMode('pdf');
+  };
+
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
   };
 
   useEffect(() => {
@@ -180,7 +201,10 @@ function App() {
             </div>
           </div>
 
-          <div className={`bg-white rounded-2xl shadow-lg p-6 border border-sky-100 ${expandedView ? 'md:col-span-2' : 'col-span-full'}`}>
+          <div 
+            ref={containerRef}
+            className={`bg-white rounded-2xl shadow-lg p-6 border border-sky-100 ${expandedView ? 'md:col-span-2' : 'col-span-full'}`}
+          >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-sky-800">Preview</h2>
               <button
@@ -201,22 +225,27 @@ function App() {
               </button>
             </div>
             {selectedFile ? (
-              <div className="overflow-auto max-h-[calc(100vh-300px)]">
+              <div className="preview-container bg-gray-50 rounded-lg">
                 {selectedFile.type === 'application/pdf' || viewMode === 'pdf' ? (
                   <Document
                     file={viewMode === 'pdf' ? selectedFile.pdfUrl : selectedFile.url}
                     onLoadSuccess={onDocumentLoadSuccess}
                     className="mx-auto"
                   >
-                    {Array.from(new Array(numPages || 0), (_, index) => (
-                      <Page
-                        key={`page_${index + 1}`}
-                        pageNumber={index + 1}
-                        width={expandedView ? window.innerWidth - 200 : 500}
-                      />
-                    ))}
+                    <div className="pdf-container">
+                      {Array.from(new Array(numPages || 0), (_, index) => (
+                        <Page
+                          key={`page_${index + 1}`}
+                          pageNumber={index + 1}
+                          renderTextLayer={false}
+                          className="pdf-page"
+                          width={containerWidth}
+                          renderAnnotationLayer={false}
+                        />
+                      ))}
+                    </div>
                   </Document>
-                ) : (
+                ) : selectedFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ? (
                   <div className="text-left p-8">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-xl font-semibold text-sky-800">DOCX Preview</h2>
@@ -234,6 +263,10 @@ function App() {
                     ) : (
                       <p className="mb-4 text-sky-600 whitespace-pre-wrap">{selectedFile.content}</p>
                     )}
+                  </div>
+                ) : (
+                  <div className="text-center text-sky-400 p-12 bg-sky-50 rounded-xl">
+                    Select a file to preview
                   </div>
                 )}
               </div>
